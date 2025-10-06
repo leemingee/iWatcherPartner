@@ -1,0 +1,40 @@
+# Environment variables
+.env
+.env.local
+
+# Google OAuth credentials (sensitive - DO NOT COMMIT)
+google_credentials.json
+google_token.json
+
+# Test outputs
+transcription_result.json
+processed_summary.txt
+test_upload_info.json
+
+# Node modules
+node_modules/
+infrastructure/node_modules/
+
+# CDK output
+infrastructure/cdk.out/
+infrastructure/.cdk.staging/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*

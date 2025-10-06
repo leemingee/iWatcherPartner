@@ -1,0 +1,979 @@
+{
+  "name": "iWatcher - Google Drive Auto Trigger",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1G5yvNVNr3fATkXrHjkJz1VRa9HG8VE1k",
+          "mode": "list",
+          "cachedResultName": "New Folder"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "gdrive-trigger",
+      "name": "New File in Google Drive",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": "={{ $('New File in Google Drive').item.json.id }}",
+        "options": {
+          "binaryPropertyName": "audioFile"
+        }
+      },
+      "id": "download-audio",
+      "name": "Download Audio",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.assemblyai.com/v2/upload",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "authorization",
+              "value": "={{$env.ASSEMBLYAI_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "specifyBody": "binaryData",
+        "inputDataFieldName": "audioFile",
+        "bodyParameters": {
+          "parameters": []
+        },
+        "options": {}
+      },
+      "id": "upload-assemblyai",
+      "name": "Upload to AssemblyAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.assemblyai.com/v2/transcript",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "authorization",
+              "value": "={{$env.ASSEMBLYAI_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"audio_url\": $json.upload_url, \"speaker_labels\": true, \"language_detection\": true, \"auto_chapters\": true, \"punctuate\": true, \"format_text\": true } }}",
+        "options": {}
+      },
+      "id": "start-transcription",
+      "name": "Start Transcription",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign1",
+              "name": "transcript_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "assign2",
+              "name": "poll_count",
+              "value": "0",
+              "type": "number"
+            },
+            {
+              "id": "assign3",
+              "name": "file_id",
+              "value": "={{ $('New File in Google Drive').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "assign4",
+              "name": "filename",
+              "value": "={{ $('New File in Google Drive').item.json.name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "init-polling",
+      "name": "Initialize Polling",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "wait-30s",
+      "name": "Wait 30 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.assemblyai.com/v2/transcript/{{ $json.transcript_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "authorization",
+              "value": "={{$env.ASSEMBLYAI_API_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-result",
+      "name": "Get Transcription Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "queued",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "condition2",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "processing",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-got-data",
+      "name": "Did We Get Result Data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-if-complete",
+      "name": "Is Completed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign1",
+              "name": "transcript_id",
+              "value": "={{ $('Wait 30 Seconds').item.json.transcript_id || $('Initialize Polling').item.json.transcript_id }}",
+              "type": "string"
+            },
+            {
+              "id": "assign2",
+              "name": "poll_count",
+              "value": "={{ ($('Wait 30 Seconds').item.json.poll_count !== undefined ? $('Wait 30 Seconds').item.json.poll_count : $('Initialize Polling').item.json.poll_count) + 1 }}",
+              "type": "number"
+            },
+            {
+              "id": "assign3",
+              "name": "file_id",
+              "value": "={{ $('Wait 30 Seconds').item.json.file_id || $('Initialize Polling').item.json.file_id }}",
+              "type": "string"
+            },
+            {
+              "id": "assign4",
+              "name": "filename",
+              "value": "={{ $('Wait 30 Seconds').item.json.filename || $('Initialize Polling').item.json.filename }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "increment-counter",
+      "name": "Increment Counter",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.poll_count }}",
+              "rightValue": 20,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-timeout",
+      "name": "Under 10 Minutes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-5-2025-08-07', messages: [ { role: 'system', content: 'You are an expert transcript processor. Create a well-formatted summary with key insights, action items, and important quotes. The transcript includes speaker labels and timestamps. Structure your response with clear sections: Summary, Key Points (note which speaker said what), Action Items, and Notable Quotes (include speaker and timestamp).' }, { role: 'user', content: $('Get Transcription Result').item.json.utterances ? $('Get Transcription Result').item.json.utterances.map(u => `[${Math.floor(u.start/1000/60).toString().padStart(2,'0')}:${Math.floor(u.start/1000%60).toString().padStart(2,'0')}] ${u.speaker}: ${u.text}`).join('\\n\\n') : $('Get Transcription Result').item.json.text } ] }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "process-openai",
+      "name": "Process with OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.choices }}",
+              "rightValue": "",
+              "operator": {
+                "type": "any",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-openai-success",
+      "name": "OpenAI Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign1",
+              "name": "choices",
+              "value": "={{ [{ message: { content: \"[AI Summary unavailable - OpenAI API error]\n\nThis transcript has been processed but the AI summary could not be generated. Please review the raw transcript below.\" } }] }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fallback-summary",
+      "name": "Fallback Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign1",
+              "name": "filename",
+              "value": "={{ $('Initialize Polling').item.json.filename }}",
+              "type": "string"
+            },
+            {
+              "id": "assign2",
+              "name": "transcript",
+              "value": "={{ $('Get Transcription Result').item.json.utterances ? $('Get Transcription Result').item.json.utterances.map(u => `[${Math.floor(u.start/1000/60).toString().padStart(2,'0')}:${Math.floor(u.start/1000%60).toString().padStart(2,'0')}] ${u.speaker}: ${u.text}`).join('\\n\\n') : $('Get Transcription Result').item.json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "assign2b",
+              "name": "raw_transcript",
+              "value": "={{ $('Get Transcription Result').item.json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "assign3",
+              "name": "processed_content",
+              "value": "={{ $json.choices[0].message.content }}",
+              "type": "string"
+            },
+            {
+              "id": "assign4",
+              "name": "confidence",
+              "value": "={{ $('Get Transcription Result').item.json.confidence }}",
+              "type": "number"
+            },
+            {
+              "id": "assign5",
+              "name": "duration",
+              "value": "={{ $('Get Transcription Result').item.json.audio_duration }}",
+              "type": "number"
+            },
+            {
+              "id": "assign6",
+              "name": "file_id",
+              "value": "={{ $('Initialize Polling').item.json.file_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-data",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign1",
+              "name": "text_content",
+              "value": "=# {{$json.filename}} - {{$now().toFormat('yyyy-MM-dd HH:mm')}}\n\n## Metadata\n- Confidence: {{Math.round($json.confidence * 100)}}%\n- Duration: {{Math.floor($json.duration / 60)}}m {{$json.duration % 60}}s\n- Processed: {{$now().toFormat('yyyy-MM-dd HH:mm:ss')}}\n\n---\n\n## AI Processed Summary\n\n{{$json.processed_content}}\n\n---\n\n## Transcript with Speaker Diarization & Timestamps\n\n{{$json.transcript}}",
+              "type": "string"
+            },
+            {
+              "id": "assign2",
+              "name": "text_filename",
+              "value": "={{$json.filename.replace(/\\.[^/.]+$/, '')}}_transcript.txt",
+              "type": "string"
+            },
+            {
+              "id": "assign3",
+              "name": "file_id",
+              "value": "={{$json.file_id}}",
+              "type": "string"
+            },
+            {
+              "id": "assign4",
+              "name": "filename",
+              "value": "={{$json.filename}}",
+              "type": "string"
+            },
+            {
+              "id": "assign5",
+              "name": "transcript",
+              "value": "={{$json.transcript}}",
+              "type": "string"
+            },
+            {
+              "id": "assign6",
+              "name": "processed_content",
+              "value": "={{$json.processed_content}}",
+              "type": "string"
+            },
+            {
+              "id": "assign7",
+              "name": "confidence",
+              "value": "={{$json.confidence}}",
+              "type": "number"
+            },
+            {
+              "id": "assign8",
+              "name": "duration",
+              "value": "={{$json.duration}}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-text-content",
+      "name": "Create Text File Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2660,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "jsonToBinary",
+        "convertAllData": false,
+        "sourceKey": "text_content",
+        "options": {
+          "fileName": "={{$json.text_filename}}",
+          "mimeType": "text/plain"
+        }
+      },
+      "id": "convert-to-binary",
+      "name": "Convert Text to Binary",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{$json.text_filename}}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": "1Rv4UVOmWdMe7dIvShiSIM8jxhOewNfom",
+        "options": {}
+      },
+      "id": "save-text-to-drive",
+      "name": "Save Text to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Chunk text into segments of maxLength\nfunction chunkText(text, maxLength) {\n  if (!text) return [''];\n  const chunks = [];\n  for (let i = 0; i < text.length; i += maxLength) {\n    chunks.push(text.substring(i, i + maxLength));\n  }\n  return chunks;\n}\n\n// Build Notion blocks with chunking\nconst blocks = [];\nconst data = $input.item.json;\n\n// Metadata paragraph\nblocks.push({\n  object: \"block\",\n  type: \"paragraph\",\n  paragraph: {\n    rich_text: [{\n      type: \"text\",\n      text: {\n        content: `Confidence: ${Math.round(data.confidence * 100)}% | Duration: ${Math.floor(data.duration / 60)}m ${data.duration % 60}s`\n      }\n    }]\n  }\n});\n\n// AI Summary heading\nblocks.push({\n  object: \"block\",\n  type: \"heading_2\",\n  heading_2: {\n    rich_text: [{\n      type: \"text\",\n      text: { content: \"AI Summary\" }\n    }]\n  }\n});\n\n// Chunk AI summary\nconst summaryChunks = chunkText(data.processed_content, 2000);\nfor (const chunk of summaryChunks) {\n  blocks.push({\n    object: \"block\",\n    type: \"paragraph\",\n    paragraph: {\n      rich_text: [{\n        type: \"text\",\n        text: { content: chunk }\n      }]\n    }\n  });\n}\n\n// Transcript heading\nblocks.push({\n  object: \"block\",\n  type: \"heading_2\",\n  heading_2: {\n    rich_text: [{\n      type: \"text\",\n      text: { content: \"Transcript with Speakers\" }\n    }]\n  }\n});\n\n// Chunk transcript\nconst transcriptChunks = chunkText(data.transcript, 2000);\nfor (const chunk of transcriptChunks) {\n  blocks.push({\n    object: \"block\",\n    type: \"paragraph\",\n    paragraph: {\n      rich_text: [{\n        type: \"text\",\n        text: { content: chunk }\n      }]\n    }\n  });\n}\n\nreturn {\n  json: {\n    ...data,\n    notion_blocks: blocks,\n    notion_title: `${data.filename} - ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`\n  }\n};"
+      },
+      "id": "build-notion-blocks",
+      "name": "Build Notion Blocks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.NOTION_API_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"parent\": { \"database_id\": $env.NOTION_DATABASE_ID }, \"properties\": { \"title\": { \"title\": [{ \"text\": { \"content\": $json.notion_title } }] } }, \"children\": $json.notion_blocks } }}",
+        "options": {}
+      },
+      "id": "save-notion",
+      "name": "Save to Notion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3320,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign1",
+              "name": "file_id",
+              "value": "={{ $('Create Text File Content').item.json.file_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "restore-file-id",
+      "name": "Restore File ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": "={{$json.file_id}}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": "1Rv4UVOmWdMe7dIvShiSIM8jxhOewNfom"
+      },
+      "id": "move-completed",
+      "name": "Move to Completed",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3540,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": "={{ $('Initialize Polling').item.json.file_id }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": "1s2H8mzRK_0F0OzM75p9NaHNy6GxRgAsA"
+      },
+      "id": "move-failed",
+      "name": "Move to Failed",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2220,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "New File in Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Download Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Audio": {
+      "main": [
+        [
+          {
+            "node": "Upload to AssemblyAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to AssemblyAI": {
+      "main": [
+        [
+          {
+            "node": "Start Transcription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Transcription": {
+      "main": [
+        [
+          {
+            "node": "Initialize Polling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Polling": {
+      "main": [
+        [
+          {
+            "node": "Wait 30 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Get Transcription Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Transcription Result": {
+      "main": [
+        [
+          {
+            "node": "Did We Get Result Data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did We Get Result Data?": {
+      "main": [
+        [
+          {
+            "node": "Is Completed?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Increment Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Completed?": {
+      "main": [
+        [
+          {
+            "node": "Process with OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Move to Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Counter": {
+      "main": [
+        [
+          {
+            "node": "Under 10 Minutes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Under 10 Minutes?": {
+      "main": [
+        [
+          {
+            "node": "Wait 30 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Move to Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process with OpenAI": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Create Text File Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Text File Content": {
+      "main": [
+        [
+          {
+            "node": "Convert Text to Binary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Notion Blocks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Text to Binary": {
+      "main": [
+        [
+          {
+            "node": "Save Text to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Text to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Restore File ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Notion Blocks": {
+      "main": [
+        [
+          {
+            "node": "Save to Notion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore File ID": {
+      "main": [
+        [
+          {
+            "node": "Move to Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Success?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback Summary": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}
