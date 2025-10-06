@@ -3,9 +3,26 @@
 
 import requests
 import json
+import os
+import sys
 
-N8N_URL = "http://localhost:5678"
-N8N_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4ZjNkM2M3Yi04Mzg4LTRmMjItYTc2Mi1jZTlhYWQ4NjMzNDQiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzU5NzExNTY5LCJleHAiOjE3NjIyNDMyMDB9.JIck482u0ZO7obHz0HT6zJ9KYu3AUlckIA428p1h-es"
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv is optional
+
+# Get configuration from environment
+N8N_URL = os.getenv("N8N_URL", "http://localhost:5678")
+N8N_API_KEY = os.getenv("N8N_API_KEY")
+
+if not N8N_API_KEY:
+    print("❌ Error: N8N_API_KEY environment variable not set!")
+    print("   Set it with: export N8N_API_KEY='your_api_key'")
+    print("   Or add to .env file: N8N_API_KEY=your_key")
+    print("   Get API key from n8n UI: Settings → API → Create API Key")
+    sys.exit(1)
 
 HEADERS = {
     "X-N8N-API-KEY": N8N_API_KEY,
