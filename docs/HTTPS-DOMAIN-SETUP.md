@@ -33,6 +33,40 @@ Into:
 **Pros:** Free, automatic renewal, simple
 **Cons:** Runs on your EC2 (small performance overhead)
 
+### Step 0: Open Port 443 in Security Group ⚠️ **CRITICAL**
+
+**Before starting HTTPS setup**, you MUST open port 443 (HTTPS) in your EC2 security group. Without this, HTTPS will timeout and be completely inaccessible.
+
+```bash
+# Get your instance's security group ID
+aws ec2 describe-instances --instance-ids YOUR_INSTANCE_ID \
+  --query 'Reservations[0].Instances[0].SecurityGroups[0].GroupId' \
+  --output text
+
+# Example output: sg-01c1c4efe4d5b3d81
+
+# Open port 443 for HTTPS traffic
+aws ec2 authorize-security-group-ingress \
+  --group-id sg-YOUR_SECURITY_GROUP_ID \
+  --protocol tcp \
+  --port 443 \
+  --cidr 0.0.0.0/0
+```
+
+**Or via AWS Console:**
+1. EC2 Dashboard → Security Groups
+2. Find your instance's security group
+3. Edit inbound rules → Add rule
+4. Type: HTTPS, Protocol: TCP, Port: 443, Source: 0.0.0.0/0
+5. Save rules
+
+**Verify port is open:**
+```bash
+# Should show port 443 in the security group rules
+aws ec2 describe-security-groups --group-ids sg-YOUR_SECURITY_GROUP_ID \
+  --query 'SecurityGroups[0].IpPermissions[?ToPort==`443`]'
+```
+
 ### Step 1: Install nginx and Certbot
 
 SSH into your EC2 instance:
@@ -129,6 +163,12 @@ server {
 
     # Proxy to n8n container
     location / {
+        # Timeout settings (IMPORTANT: n8n needs longer timeouts)
+        # Default nginx timeout is 60s, which causes 504 Gateway Timeout errors
+        proxy_connect_timeout 300;  # Time to connect to n8n
+        proxy_send_timeout 300;     # Time to send request to n8n
+        proxy_read_timeout 300;     # Time to read response from n8n (normal requests)
+
         proxy_pass http://localhost:5678;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -141,8 +181,9 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # WebSocket support
-        proxy_read_timeout 86400;
+        # WebSocket support (for long-running workflow executions)
+        send_timeout 86400;         # WebSocket send timeout (24 hours)
+        proxy_read_timeout 86400;   # WebSocket read timeout (24 hours)
     }
 }
 EOF
